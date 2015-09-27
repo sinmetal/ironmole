@@ -168,6 +168,91 @@ func BuildSchema(schema []*bigquery.TableFieldSchema, prefix string, src interfa
 	return schema
 }
 
+func BuildJsonValue(jsonValue map[string]bigquery.JsonValue, prefix string, src interface{}) map[string]bigquery.JsonValue {
+	v := reflect.ValueOf(src)
+
+	fmt.Println(fmt.Printf("v.Kind = %s\n", v.Kind()))
+	fmt.Println(fmt.Printf("v.NumFields = %d\n", v.Type().NumField()))
+	for i := 0; i < v.Type().NumField(); i++ {
+		if len(v.Type().Field(i).PkgPath) > 0 {
+			fmt.Printf("%s is Unexported\n", fmt.Sprintf("%s.%s", prefix, v.Type().Field(i).Name))
+			continue
+		}
+		fmt.Printf("%s run start, PkgPath = %s\n", fmt.Sprintf("%s.%s", prefix, v.Type().Field(i).Name), v.Type().Field(i).PkgPath)
+
+		switch x := v.Field(i).Interface().(type) {
+		case *datastore.Key:
+			fmt.Printf("%s is datastore.Key!, PkgPath = %s, x = %v\n", fmt.Sprintf("%s.%s", prefix, v.Type().Field(i).Name), v.Type().Field(i).PkgPath, x)
+			if k, ok := v.Field(i).Interface().(*datastore.Key); ok {
+				if k != nil {
+					name := buildName(prefix, v.Type().Field(i).Name)
+					v := map[string]bigquery.JsonValue{
+						"namespace": k.Namespace(),
+						"app":       k.AppID(),
+						"path":      "", // TODO Ancenstor Path
+						"kind":      k.Kind(),
+						"name":      k.StringID(),
+						"id":        k.IntID(),
+					}
+					jsonValue[name] = v
+				}
+			}
+		case time.Time:
+			//			schema = append(schema, &bigquery.TableFieldSchema{
+			//				Name: buildName(prefix, v.Type().Field(i).Name),
+			//				Type: "TIMESTAMP",
+			//			})
+		//p.Value = x
+		case appengine.BlobKey:
+		//p.Value = x
+		case appengine.GeoPoint:
+		//p.Value = x
+		case datastore.ByteString:
+		// byte列はスルー
+		default:
+			fmt.Printf("x is default, %v\n", x)
+
+			if v.Field(i).Kind() == reflect.Struct {
+				jsonValue = BuildJsonValue(jsonValue, v.Type().Field(i).Name, v.Field(i).Interface())
+			} else {
+				fmt.Printf("Name = %s, Value = %v\n", fmt.Sprintf("%s.%s", prefix, v.Type().Field(i).Name), v.Field(i).Interface())
+				jsonValue[buildName(prefix, v.Type().Field(i).Name)] = func() interface{} {
+					switch v.Field(i).Kind() {
+					case reflect.Invalid:
+					// No-op.
+					case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+						return v.Field(i).Interface()
+					case reflect.Bool:
+						return v.Field(i).Interface()
+					case reflect.String:
+						return v.Field(i).Interface()
+					case reflect.Float32, reflect.Float64:
+						return v.Field(i).Interface()
+					case reflect.Ptr:
+						// No-op.
+					case reflect.Struct:
+						// No-op.
+					case reflect.Slice:
+						// TODO slice
+						fmt.Println("Slice = %v", v.Field(i))
+					//                        if b, ok := v.Interface().([]byte); ok {
+					//                            pv.StringValue = proto.String(string(b))
+					//                        } else {
+					//                            // nvToProto should already catch slice values.
+					//                            // If we get here, we have a slice of slice values.
+					//                            unsupported = true
+					//                        }
+					default:
+
+					}
+					return "" // TODO
+				}()
+			}
+		}
+	}
+	return jsonValue
+}
+
 func bqin() {
 	rows := make([]*bigquery.TableDataInsertAllRequestRows, 1)
 	rows[0] = &bigquery.TableDataInsertAllRequestRows{
@@ -211,20 +296,20 @@ func insert(bq *bigquery.Service, url string, statusCode int, start int64, end i
 	return err
 }
 
-func Insert2(bq *bigquery.Service, jsonValue map[string]bigquery.JsonValue) (*bigquery.TableDataInsertAllResponse, error) {
+func Insert2(bq *bigquery.Service, projectId string, datasetId string, tableId string, jsonValue map[string]bigquery.JsonValue) (*bigquery.TableDataInsertAllResponse, error) {
 	rows := make([]*bigquery.TableDataInsertAllRequestRows, 1)
 	rows[0] = &bigquery.TableDataInsertAllRequestRows{
-		//Json: jsonValue,
-		Json: map[string]bigquery.JsonValue{
-			"Fuga_Name": "Paaaa",
-			"Fuga_Age":  0,
-			"Hoge_Name": "Mogege",
-			"Hoge_Age":  28,
-		},
+		Json: jsonValue,
+		//		Json: map[string]bigquery.JsonValue{
+		//			"Fuga_Name": "Paaaa",
+		//			"Fuga_Age":  0,
+		//			"Hoge_Name": "Mogege",
+		//			"Hoge_Age":  28,
+		//		},
 	}
 	fmt.Println("%v", rows[0])
 
-	return bq.Tabledata.InsertAll("cp300demo1", "go2bq", "go2bq_20150905", &bigquery.TableDataInsertAllRequest{
+	return bq.Tabledata.InsertAll(projectId, datasetId, tableId, &bigquery.TableDataInsertAllRequest{
 		Kind: "bigquery#tableDataInsertAllRequest",
 		Rows: rows,
 	}).Do()

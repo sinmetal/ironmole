@@ -34,7 +34,8 @@ type Hoge struct {
 }
 
 func init() {
-	http.HandleFunc("/hello", handler)
+	http.HandleFunc("/table", handler)
+	http.HandleFunc("/insert", handlerInsert)
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
@@ -64,18 +65,38 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Errorf(ctx, "%v", err)
 	}
+}
 
-	//	body := map[string]bigquery.JsonValue{}
-	//	Print2(body, "", c)
-	//	res, err := Insert2(bq, body)
-	//	if err != nil {
-	//		log.Fatal(err)
-	//	}
-	//	fmt.Println(res)
-	//	for _, insertError := range res.InsertErrors {
-	//		for _, error := range insertError.Errors {
-	//			log.Printf("Insert Error = %v", error)
-	//		}
-	//	}
+func handlerInsert(w http.ResponseWriter, r *http.Request) {
+	ctx := appengine.NewContext(r)
 
+	client := &http.Client{
+		Transport: &oauth2.Transport{
+			Source: google.AppEngineTokenSource(ctx, bigquery.BigqueryScope),
+			Base:   &urlfetch.Transport{Context: ctx},
+		},
+	}
+
+	bq, err := bigquery.New(client)
+	if err != nil {
+		fmt.Errorf("%v", err)
+	}
+
+	key := datastore.Key{}
+	c := Container2{
+		Hoge: Hoge{Name: "hoge", Age: 28},
+		Key:  &key,
+	}
+
+	jsonValue := make(map[string]bigquery.JsonValue)
+	BuildJsonValue(jsonValue, "", c)
+	res, err := Insert2(bq, "cp300demo1", "go2bq", "Container2", jsonValue)
+	if err != nil {
+		log.Errorf(ctx, "%v", err)
+	}
+	for _, insertError := range res.InsertErrors {
+		for _, error := range insertError.Errors {
+			log.Errorf(ctx, "Insert Error = %v", error)
+		}
+	}
 }

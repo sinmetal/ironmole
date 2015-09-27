@@ -39,6 +39,16 @@ func TestBuildSchema(t *testing.T) {
 	}
 }
 
-func TestBQIn(t *testing.T) {
-	bqin()
+func TestBuildJsonValue(t *testing.T) {
+	key := datastore.Key{}
+
+	c := Container2{
+		Hoge: Hoge{Name: "hoge", Age: 28},
+		Key:  &key,
+	}
+
+	jsonValue := make(map[string]bigquery.JsonValue)
+	BuildJsonValue(jsonValue, "", c)
+
+	fmt.Println(jsonValue)
 }
