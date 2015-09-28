@@ -94,7 +94,6 @@ func BuildSchema(schema []*bigquery.TableFieldSchema, prefix string, src interfa
 				Name: buildName(prefix, v.Type().Field(i).Name),
 				Type: "TIMESTAMP",
 			})
-		//p.Value = x
 		case appengine.BlobKey:
 		//p.Value = x
 		case appengine.GeoPoint:
@@ -198,11 +197,7 @@ func BuildJsonValue(jsonValue map[string]bigquery.JsonValue, prefix string, src 
 				}
 			}
 		case time.Time:
-			//			schema = append(schema, &bigquery.TableFieldSchema{
-			//				Name: buildName(prefix, v.Type().Field(i).Name),
-			//				Type: "TIMESTAMP",
-			//			})
-		//p.Value = x
+			jsonValue[buildName(prefix, v.Type().Field(i).Name)] = x.UnixNano()
 		case appengine.BlobKey:
 		//p.Value = x
 		case appengine.GeoPoint:
