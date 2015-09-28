@@ -60,7 +60,7 @@ func BuildSchema(schema []*bigquery.TableFieldSchema, prefix string, src interfa
 		case *datastore.Key:
 			fmt.Printf("%s is datastore.Key!, PkgPath = %s, x = %v\n", fmt.Sprintf("%s.%s", prefix, v.Type().Field(i).Name), v.Type().Field(i).PkgPath, x)
 			schema = append(schema, &bigquery.TableFieldSchema{
-				Name: buildName(prefix, v.Type().Field(i).Name),
+				Name: v.Type().Field(i).Name,
 				Type: "RECORD",
 				Fields: []*bigquery.TableFieldSchema{
 					{
@@ -91,7 +91,7 @@ func BuildSchema(schema []*bigquery.TableFieldSchema, prefix string, src interfa
 			})
 		case time.Time:
 			schema = append(schema, &bigquery.TableFieldSchema{
-				Name: buildName(prefix, v.Type().Field(i).Name),
+				Name: v.Type().Field(i).Name,
 				Type: "TIMESTAMP",
 			})
 		case appengine.BlobKey:
@@ -104,11 +104,17 @@ func BuildSchema(schema []*bigquery.TableFieldSchema, prefix string, src interfa
 			fmt.Printf("x is default, %v\n", x)
 
 			if v.Field(i).Kind() == reflect.Struct {
-				schema = BuildSchema(schema, v.Type().Field(i).Name, v.Field(i).Interface())
+				schemaStruct := make([]*bigquery.TableFieldSchema, 0, 10)
+				schemaStruct = BuildSchema(schemaStruct, v.Type().Field(i).Name, v.Field(i).Interface())
+				schema = append(schema, &bigquery.TableFieldSchema{
+					Name:   v.Type().Field(i).Name,
+					Type:   "RECORD",
+					Fields: schemaStruct,
+				})
 			} else {
 				fmt.Printf("Name = %s, Value = %v\n", fmt.Sprintf("%s.%s", prefix, v.Type().Field(i).Name), v.Field(i).Interface())
 				schema = append(schema, &bigquery.TableFieldSchema{
-					Name: buildName(prefix, v.Type().Field(i).Name),
+					Name: v.Type().Field(i).Name,
 					Type: func() string {
 						switch v.Field(i).Kind() {
 						case reflect.Invalid:
@@ -128,25 +134,24 @@ func BuildSchema(schema []*bigquery.TableFieldSchema, prefix string, src interfa
 									fmt.Println("%v is datastore.Key!", v.Field(i))
 								}
 							}
-						case reflect.Struct:
-							fmt.Println("Strunct = %v", v.Field(i))
-						//                        switch t := v.Interface().(type) {
-						//                            case time.Time:
-						//                            if t.Before(minTime) || t.After(maxTime) {
-						//                                return nil, "time value out of range"
-						//                            }
-						//                            pv.Int64Value = proto.Int64(toUnixMicro(t))
-						//                            case appengine.GeoPoint:
-						//                            if !t.Valid() {
-						//                                return nil, "invalid GeoPoint value"
-						//                            }
-						//                            // NOTE: Strangely, latitude maps to X, longitude to Y.
-						//                            pv.Pointvalue = &pb.PropertyValue_PointValue{X: &t.Lat, Y: &t.Lng}
-						//                            default:
-						//                            unsupported = true
-						//                        }
 						case reflect.Slice:
 							fmt.Println("Slice = %v", v.Field(i))
+							fmt.Println("Slice Type = %v", reflect.SliceOf(v.Field(i).Type()))
+
+							switch reflect.SliceOf(v.Field(i).Type()) {
+							case *datastore.Key:
+								fmt.Println("datastore.key = %v", v.Field(i))
+							default:
+								fmt.Println("default = %v", v.Field(i))
+							}
+							//							switch slice := v.Field(i).Interface().(type) {
+							//								default :
+							//								for s := range slice {
+							//									fmt.Println(s)
+							//								}
+							//							}
+
+							//reflect.SliceOf(v.Field(i).Type()).Kind()
 						//                        if b, ok := v.Interface().([]byte); ok {
 						//                            pv.StringValue = proto.String(string(b))
 						//                        } else {
@@ -184,7 +189,7 @@ func BuildJsonValue(jsonValue map[string]bigquery.JsonValue, prefix string, src 
 			fmt.Printf("%s is datastore.Key!, PkgPath = %s, x = %v\n", fmt.Sprintf("%s.%s", prefix, v.Type().Field(i).Name), v.Type().Field(i).PkgPath, x)
 			if k, ok := v.Field(i).Interface().(*datastore.Key); ok {
 				if k != nil {
-					name := buildName(prefix, v.Type().Field(i).Name)
+					name := v.Type().Field(i).Name
 					v := map[string]bigquery.JsonValue{
 						"namespace": k.Namespace(),
 						"app":       k.AppID(),
@@ -197,7 +202,7 @@ func BuildJsonValue(jsonValue map[string]bigquery.JsonValue, prefix string, src 
 				}
 			}
 		case time.Time:
-			jsonValue[buildName(prefix, v.Type().Field(i).Name)] = x.UnixNano()
+			jsonValue[v.Type().Field(i).Name] = x.Unix()
 		case appengine.BlobKey:
 		//p.Value = x
 		case appengine.GeoPoint:
@@ -208,10 +213,12 @@ func BuildJsonValue(jsonValue map[string]bigquery.JsonValue, prefix string, src 
 			fmt.Printf("x is default, %v\n", x)
 
 			if v.Field(i).Kind() == reflect.Struct {
-				jsonValue = BuildJsonValue(jsonValue, v.Type().Field(i).Name, v.Field(i).Interface())
+				jsonValueStruct := make(map[string]bigquery.JsonValue)
+				jsonValueStruct = BuildJsonValue(jsonValueStruct, v.Type().Field(i).Name, v.Field(i).Interface())
+				jsonValue[v.Type().Field(i).Name] = jsonValueStruct
 			} else {
 				fmt.Printf("Name = %s, Value = %v\n", fmt.Sprintf("%s.%s", prefix, v.Type().Field(i).Name), v.Field(i).Interface())
-				jsonValue[buildName(prefix, v.Type().Field(i).Name)] = func() interface{} {
+				jsonValue[v.Type().Field(i).Name] = func() interface{} {
 					switch v.Field(i).Kind() {
 					case reflect.Invalid:
 					// No-op.
@@ -385,13 +392,4 @@ func CreateTableMock(bq *bigquery.Service) error {
 
 	_, err := bq.Tables.Insert("cp300demo1", "go2bq", &t).Do()
 	return err
-}
-
-func buildName(prefix string, name string) string {
-	fmt.Printf("prefix = %s, name = %s\n", prefix, name)
-	if len(prefix) > 0 {
-		return fmt.Sprintf("%s_%s", prefix, name)
-	} else {
-		return name
-	}
 }

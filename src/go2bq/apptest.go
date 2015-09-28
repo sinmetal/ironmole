@@ -44,12 +44,14 @@ type Item struct {
 
 // Moge
 type Moge struct {
-	KeyStr    string         `json:"key" datastore:"-"`
-	Title     string         `json:"title" datastore:",noindex"`
-	ItemKey   *datastore.Key `json:"itemKey"`
-	Item      Item           `json:"item"`
-	CreatedAt time.Time      `json:"createdAt"`
-	UpdatedAt time.Time      `json:"updatedAt"`
+	KeyStr    string           `json:"key" datastore:"-"`
+	Title     string           `json:"title" datastore:",noindex"`
+	ItemKey   *datastore.Key   `json:"itemKey"`
+	ItemKeys  []*datastore.Key `json:"itemKeys"`
+	Item      Item             `json:"item"`
+	Refs      []string         `json:"refs"`
+	CreatedAt time.Time        `json:"createdAt"`
+	UpdatedAt time.Time        `json:"updatedAt"`
 }
 
 func init() {

@@ -47,11 +47,18 @@ func TestBuildSchemaMoge(t *testing.T) {
 
 	for _, tfs := range schema {
 		fmt.Printf("Name : %s, Type : %s \n", tfs.Name, tfs.Type)
+		if "RECORD" == tfs.Type {
+			for _, field := range tfs.Fields {
+				fmt.Printf("Name : %s.%s, Type : %s \n", tfs.Name, field.Name, field.Type)
+			}
+		}
 	}
 }
 
 func TestBuildJsonValueMoge(t *testing.T) {
-	item := Item{}
+	item := Item{
+		Title: "item_title",
+	}
 	moge := Moge{
 		Item:      item,
 		CreatedAt: time.Now(),
