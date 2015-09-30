@@ -60,34 +60,9 @@ func BuildSchema(schema []*bigquery.TableFieldSchema, prefix string, src interfa
 		case *datastore.Key:
 			fmt.Printf("%s is datastore.Key!, PkgPath = %s, x = %v\n", fmt.Sprintf("%s.%s", prefix, v.Type().Field(i).Name), v.Type().Field(i).PkgPath, x)
 			schema = append(schema, &bigquery.TableFieldSchema{
-				Name: v.Type().Field(i).Name,
-				Type: "RECORD",
-				Fields: []*bigquery.TableFieldSchema{
-					{
-						Name: "namespace",
-						Type: "STRING",
-					},
-					{
-						Name: "app",
-						Type: "STRING",
-					},
-					{
-						Name: "path",
-						Type: "STRING",
-					},
-					{
-						Name: "kind",
-						Type: "STRING",
-					},
-					{
-						Name: "name",
-						Type: "STRING",
-					},
-					{
-						Name: "id",
-						Type: "INTEGER",
-					},
-				},
+				Name:   v.Type().Field(i).Name,
+				Type:   "RECORD",
+				Fields: createKeySchema(),
 			})
 		case time.Time:
 			schema = append(schema, &bigquery.TableFieldSchema{
@@ -136,29 +111,33 @@ func BuildSchema(schema []*bigquery.TableFieldSchema, prefix string, src interfa
 							}
 						case reflect.Slice:
 							fmt.Println("Slice = %v", v.Field(i))
-							fmt.Println("Slice Type = %v", reflect.SliceOf(v.Field(i).Type()))
+							fmt.Println(v.Field(i).Type().Elem())
+							fmt.Println(v.Field(i).Type().Elem().Kind())
 
-							switch reflect.SliceOf(v.Field(i).Type()) {
-							case *datastore.Key:
-								fmt.Println("datastore.key = %v", v.Field(i))
-							default:
-								fmt.Println("default = %v", v.Field(i))
+							if v.Field(i).Type().Elem() == reflect.TypeOf(datastore.Key{}) {
+
 							}
-							//							switch slice := v.Field(i).Interface().(type) {
-							//								default :
-							//								for s := range slice {
-							//									fmt.Println(s)
-							//								}
-							//							}
+							elem := v.Field(i).Type().Elem()
+							switch elem {
+							case reflect.TypeOf(&datastore.Key{}):
+								return "RECORD"
+							default:
+								fmt.Println("slice default")
+								switch elem.Kind() {
+								case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+									return "INTEGER"
+								case reflect.Bool:
+									return "BOOLEAN"
+								case reflect.String:
+									return "STRING"
+								case reflect.Float32, reflect.Float64:
+									return "FLOAT"
+								default:
+									fmt.Println("slice default") // TODO
+								}
+							}
 
-							//reflect.SliceOf(v.Field(i).Type()).Kind()
-						//                        if b, ok := v.Interface().([]byte); ok {
-						//                            pv.StringValue = proto.String(string(b))
-						//                        } else {
-						//                            // nvToProto should already catch slice values.
-						//                            // If we get here, we have a slice of slice values.
-						//                            unsupported = true
-						//                        }
+							return "" // TODO
 						default:
 
 						}
@@ -189,18 +168,10 @@ func BuildJsonValue(jsonValue map[string]bigquery.JsonValue, prefix string, src 
 			fmt.Printf("%s is datastore.Key!, PkgPath = %s, x = %v\n", fmt.Sprintf("%s.%s", prefix, v.Type().Field(i).Name), v.Type().Field(i).PkgPath, x)
 			if k, ok := v.Field(i).Interface().(*datastore.Key); ok {
 				if k != nil {
-					name := v.Type().Field(i).Name
-					v := map[string]bigquery.JsonValue{
-						"namespace": k.Namespace(),
-						"app":       k.AppID(),
-						"path":      "", // TODO Ancenstor Path
-						"kind":      k.Kind(),
-						"name":      k.StringID(),
-						"id":        k.IntID(),
-					}
-					jsonValue[name] = v
+					jsonValue[v.Type().Field(i).Name] = buildDatastoreKey(k)
 				}
 			}
+
 		case time.Time:
 			jsonValue[v.Type().Field(i).Name] = x.Unix()
 		case appengine.BlobKey:
@@ -235,15 +206,31 @@ func BuildJsonValue(jsonValue map[string]bigquery.JsonValue, prefix string, src 
 					case reflect.Struct:
 						// No-op.
 					case reflect.Slice:
-						// TODO slice
 						fmt.Println("Slice = %v", v.Field(i))
-					//                        if b, ok := v.Interface().([]byte); ok {
-					//                            pv.StringValue = proto.String(string(b))
-					//                        } else {
-					//                            // nvToProto should already catch slice values.
-					//                            // If we get here, we have a slice of slice values.
-					//                            unsupported = true
-					//                        }
+						l := v.Field(i).Len()
+						jv := make([]interface{}, l)
+						for j := 0; j < l; j++ {
+							elemV := v.Field(i).Index(j).Interface()
+							if ev, ok := elemV.(*datastore.Key); ok {
+								fmt.Println("slice datastore.key")
+								jv[j] = buildDatastoreKey(ev)
+							} else {
+								switch v.Field(i).Type().Elem().Kind() {
+								case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+									jv[j] = elemV
+								case reflect.Bool:
+									jv[j] = elemV
+								case reflect.String:
+									fmt.Println("slice loop string")
+									jv[j] = elemV
+								case reflect.Float32, reflect.Float64:
+									jv[j] = elemV
+								default:
+									fmt.Println("slice default")
+								}
+							}
+						}
+						return jv
 					default:
 
 					}
@@ -392,4 +379,44 @@ func CreateTableMock(bq *bigquery.Service) error {
 
 	_, err := bq.Tables.Insert("cp300demo1", "go2bq", &t).Do()
 	return err
+}
+
+func createKeySchema() []*bigquery.TableFieldSchema {
+	return []*bigquery.TableFieldSchema{
+		{
+			Name: "namespace",
+			Type: "STRING",
+		},
+		{
+			Name: "app",
+			Type: "STRING",
+		},
+		{
+			Name: "path",
+			Type: "STRING",
+		},
+		{
+			Name: "kind",
+			Type: "STRING",
+		},
+		{
+			Name: "name",
+			Type: "STRING",
+		},
+		{
+			Name: "id",
+			Type: "INTEGER",
+		},
+	}
+}
+
+func buildDatastoreKey(key *datastore.Key) map[string]bigquery.JsonValue {
+	return map[string]bigquery.JsonValue{
+		"namespace": key.Namespace(),
+		"app":       key.AppID(),
+		"path":      "", // TODO Ancenstor Path
+		"kind":      key.Kind(),
+		"name":      key.StringID(),
+		"id":        key.IntID(),
+	}
 }

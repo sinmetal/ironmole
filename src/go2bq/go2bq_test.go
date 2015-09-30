@@ -61,6 +61,7 @@ func TestBuildJsonValueMoge(t *testing.T) {
 	}
 	moge := Moge{
 		Item:      item,
+		Refs:      []string{"momomo", "bababa"},
 		CreatedAt: time.Now(),
 	}
 
