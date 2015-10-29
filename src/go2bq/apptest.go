@@ -46,6 +46,7 @@ type Item struct {
 // Moge
 type Moge struct {
 	KeyStr    string           `json:"key" datastore:"-"`
+	Key       *datastore.Key   `json:"-" datastore:"-"`
 	Title     string           `json:"title" datastore:",noindex"`
 	ItemKey   *datastore.Key   `json:"itemKey"`
 	ItemKeys  []*datastore.Key `json:"itemKeys"`
@@ -193,10 +194,17 @@ func handlerInsertMoge(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	moge.Key = key
 	moge.KeyStr = key.Encode()
 
 	jsonValue := make(map[string]bigquery.JsonValue)
-	BuildJsonValue(jsonValue, "", moge)
+	_, err = BuildJsonValue(jsonValue, "", moge)
+	if err != nil {
+		log.Errorf(ctx, "%v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	log.Infof(ctx, "%v", jsonValue)
 	res, err := Insert(bq, "cp300demo1", "go2bq", "Moge", jsonValue)
 	if err != nil {
