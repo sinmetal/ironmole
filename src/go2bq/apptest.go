@@ -32,7 +32,7 @@ type Container2 struct {
 type Hoge struct {
 	Name string
 	Age  int
-	//pri  int
+	pri  int
 }
 
 // Item
@@ -115,7 +115,7 @@ func handlerInsert(w http.ResponseWriter, r *http.Request) {
 
 	jsonValue := make(map[string]bigquery.JsonValue)
 	BuildJsonValue(jsonValue, "", c)
-	res, err := Insert2(bq, "cp300demo1", "go2bq", "Container2", jsonValue)
+	res, err := Insert(bq, "cp300demo1", "go2bq", "Container2", jsonValue)
 	if err != nil {
 		log.Errorf(ctx, "%v", err)
 	}
@@ -198,7 +198,7 @@ func handlerInsertMoge(w http.ResponseWriter, r *http.Request) {
 	jsonValue := make(map[string]bigquery.JsonValue)
 	BuildJsonValue(jsonValue, "", moge)
 	log.Infof(ctx, "%v", jsonValue)
-	res, err := Insert2(bq, "cp300demo1", "go2bq", "Moge", jsonValue)
+	res, err := Insert(bq, "cp300demo1", "go2bq", "Moge", jsonValue)
 	if err != nil {
 		log.Errorf(ctx, "%v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

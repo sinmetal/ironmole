@@ -10,40 +10,6 @@ import (
 	"google.golang.org/appengine/datastore"
 )
 
-func print(src interface{}) {
-	v := reflect.ValueOf(src)
-	fmt.Println(fmt.Printf("v.Kind = %s\n", v.Kind()))
-	fmt.Println(fmt.Printf("v.NumFields = %d\n", v.Type().NumField()))
-	for i := 0; i < v.Type().NumField(); i++ {
-		//fmt.Println(v.Type().Field(i))
-		fmt.Println(fmt.Printf("i.Type = %s\n", v.Field(i).Type().Name()))
-		fmt.Println(fmt.Printf("i.Kind = %s\n", v.Field(i).Kind()))
-
-		for j := 0; j < v.Type().Field(i).Type.NumField(); j++ {
-			fmt.Printf("j = %s\n", v.Type().Field(i).Type.Field(j))
-			fmt.Printf("j.Name = %s\n", v.Type().Field(i).Type.Field(j).Name)
-			fmt.Printf("j.Type = %s\n", v.Type().Field(i).Type.Field(j).Type)
-			fmt.Printf("j.Value = %v\n", v.Field(i).Field(j).Interface())
-		}
-	}
-	//fmt.Println(v.Interface())
-}
-
-func Print2(body map[string]bigquery.JsonValue, prefix string, src interface{}) {
-	v := reflect.ValueOf(src)
-
-	fmt.Println(fmt.Printf("v.Kind = %s\n", v.Kind()))
-	fmt.Println(fmt.Printf("v.NumFields = %d\n", v.Type().NumField()))
-	for i := 0; i < v.Type().NumField(); i++ {
-		if v.Field(i).Kind() == reflect.Struct {
-			Print2(body, v.Type().Field(i).Name, v.Field(i).Interface())
-		} else {
-			fmt.Printf("Name = %s, Value = %v\n", fmt.Sprintf("%s.%s", prefix, v.Type().Field(i).Name), v.Field(i).Interface())
-			body[fmt.Sprintf("%s.%s", prefix, v.Type().Field(i).Name)] = v.Field(i).Interface()
-		}
-	}
-}
-
 func BuildSchema(schema []*bigquery.TableFieldSchema, prefix string, src interface{}) []*bigquery.TableFieldSchema {
 	v := reflect.ValueOf(src)
 
@@ -91,7 +57,7 @@ func BuildSchema(schema []*bigquery.TableFieldSchema, prefix string, src interfa
 				tfs := func() *bigquery.TableFieldSchema {
 					switch v.Field(i).Kind() {
 					case reflect.Invalid:
-					// No-op.
+						// No-op.
 					case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 						return &bigquery.TableFieldSchema{
 							Name: v.Type().Field(i).Name,
@@ -120,9 +86,6 @@ func BuildSchema(schema []*bigquery.TableFieldSchema, prefix string, src interfa
 						fmt.Println(v.Field(i).Type().Elem())
 						fmt.Println(v.Field(i).Type().Elem().Kind())
 
-						if v.Field(i).Type().Elem() == reflect.TypeOf(datastore.Key{}) {
-
-						}
 						elem := v.Field(i).Type().Elem()
 						switch elem {
 						case reflect.TypeOf(&datastore.Key{}):
@@ -264,50 +227,7 @@ func BuildJsonValue(jsonValue map[string]bigquery.JsonValue, prefix string, src 
 	return jsonValue
 }
 
-func bqin() {
-	rows := make([]*bigquery.TableDataInsertAllRequestRows, 1)
-	rows[0] = &bigquery.TableDataInsertAllRequestRows{
-		Json: map[string]bigquery.JsonValue{
-			"url":         "hoge.com",
-			"status_code": 200,
-			"start":       time.Now,
-			"end":         time.Now,
-			"progres_ms":  100,
-		},
-	}
-	fmt.Println("%v", rows[0])
-}
-
-func insert(bq *bigquery.Service, url string, statusCode int, start int64, end int64, ms int64) error {
-	rows := make([]*bigquery.TableDataInsertAllRequestRows, 1)
-	rows[0] = &bigquery.TableDataInsertAllRequestRows{
-		Json: map[string]bigquery.JsonValue{
-			"url":         url,
-			"status_code": statusCode,
-			"start":       start,
-			"end":         end,
-			"progres_ms":  ms,
-		},
-	}
-	fmt.Println("%v", rows[0])
-
-	var err error
-	for i := 1; i < 10; i++ {
-		_, err = bq.Tabledata.InsertAll("cp300demo1", "go2bq", "go2bq_20150905", &bigquery.TableDataInsertAllRequest{
-			Kind: "bigquery#tableDataInsertAllRequest",
-			Rows: rows,
-		}).Do()
-		if err != nil {
-			fmt.Errorf("%v", err)
-			time.Sleep(time.Duration(i) * time.Second)
-		} else {
-			break
-		}
-	}
-	return err
-}
-
-func Insert2(bq *bigquery.Service, projectId string, datasetId string, tableId string, jsonValue map[string]bigquery.JsonValue) (*bigquery.TableDataInsertAllResponse, error) {
+func Insert(bq *bigquery.Service, projectId string, datasetId string, tableId string, jsonValue map[string]bigquery.JsonValue) (*bigquery.TableDataInsertAllResponse, error) {
 	rows := make([]*bigquery.TableDataInsertAllRequestRows, 1)
 	rows[0] = &bigquery.TableDataInsertAllRequestRows{
 		Json: jsonValue,
@@ -331,69 +251,6 @@ func CreateTable(bq *bigquery.Service, projectId string, datasetId string, table
 	}
 
 	_, err := bq.Tables.Insert(projectId, datasetId, &t).Do()
-	return err
-}
-
-func CreateTableMock(bq *bigquery.Service) error {
-	t := bigquery.Table{
-		TableReference: &bigquery.TableReference{
-			ProjectId: "cp300demo1",
-			DatasetId: "go2bq",
-			TableId:   "go2bq_20150905",
-		},
-		Schema: &bigquery.TableSchema{
-			Fields: []*bigquery.TableFieldSchema{
-				{
-					Name: "Fuga_Name",
-					Type: "STRING",
-				},
-				{
-					Name: "Fuga_Age",
-					Type: "INTEGER",
-				},
-				{
-					Name: "Hoge_Name",
-					Type: "STRING",
-				},
-				{
-					Name: "Hoge_Age",
-					Type: "INTEGER",
-				},
-				{
-					Name: "__key__",
-					Type: "RECORD",
-					Fields: []*bigquery.TableFieldSchema{
-						{
-							Name: "namespace",
-							Type: "STRING",
-						},
-						{
-							Name: "app",
-							Type: "STRING",
-						},
-						{
-							Name: "path",
-							Type: "STRING",
-						},
-						{
-							Name: "kind",
-							Type: "STRING",
-						},
-						{
-							Name: "name",
-							Type: "STRING",
-						},
-						{
-							Name: "id",
-							Type: "INTEGER",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	_, err := bq.Tables.Insert("cp300demo1", "go2bq", &t).Do()
 	return err
 }
 

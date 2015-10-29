@@ -8,23 +8,6 @@ import (
 	"time"
 )
 
-func TestPrint(t *testing.T) {
-	c := Container{
-		Hoge: Hoge{Name: "hoge", Age: 28},
-	}
-	print(c)
-}
-
-func TestPrint2(t *testing.T) {
-	c := Container{
-		Hoge: Hoge{Name: "hoge", Age: 28},
-	}
-	body := map[string]bigquery.JsonValue{}
-	Print2(body, "", c)
-
-	fmt.Printf("%v", body)
-}
-
 func TestBuildSchema(t *testing.T) {
 	key := datastore.Key{}
 
