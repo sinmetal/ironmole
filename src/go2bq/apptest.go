@@ -1,6 +1,7 @@
 package go2bq
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -59,6 +60,7 @@ func init() {
 	http.HandleFunc("/insert", handlerInsert)
 	http.HandleFunc("/tableMoge", handlerTableMoge)
 	http.HandleFunc("/insertMoge", handlerInsertMoge)
+	http.HandleFunc("/moge", handlerMoge)
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
@@ -136,7 +138,9 @@ func handlerTableMoge(w http.ResponseWriter, r *http.Request) {
 
 	bq, err := bigquery.New(client)
 	if err != nil {
-		fmt.Errorf("%v", err)
+		log.Errorf(ctx, "%v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	moge := Moge{}
@@ -146,7 +150,12 @@ func handlerTableMoge(w http.ResponseWriter, r *http.Request) {
 	err = CreateTable(bq, "cp300demo1", "go2bq", "Moge", schema)
 	if err != nil {
 		log.Errorf(ctx, "%v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("done"))
 }
 
 func handlerInsertMoge(w http.ResponseWriter, r *http.Request) {
@@ -162,6 +171,8 @@ func handlerInsertMoge(w http.ResponseWriter, r *http.Request) {
 	bq, err := bigquery.New(client)
 	if err != nil {
 		fmt.Errorf("%v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	keyStr := r.URL.Query().Get("key")
@@ -186,13 +197,47 @@ func handlerInsertMoge(w http.ResponseWriter, r *http.Request) {
 
 	jsonValue := make(map[string]bigquery.JsonValue)
 	BuildJsonValue(jsonValue, "", moge)
+	log.Infof(ctx, "%v", jsonValue)
 	res, err := Insert2(bq, "cp300demo1", "go2bq", "Moge", jsonValue)
 	if err != nil {
 		log.Errorf(ctx, "%v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	for _, insertError := range res.InsertErrors {
 		for _, error := range insertError.Errors {
 			log.Errorf(ctx, "Insert Error = %v", error)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("done"))
+}
+
+func handlerMoge(w http.ResponseWriter, r *http.Request) {
+	ctx := appengine.NewContext(r)
+
+	q := datastore.NewQuery("Moge").Limit(10)
+
+	var items []Moge
+	t := q.Run(ctx)
+	for {
+		var item Moge
+		k, err := t.Next(&item)
+		if err == datastore.Done {
+			break
+		}
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		item.KeyStr = k.Encode()
+		items = append(items, item)
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(items)
 }

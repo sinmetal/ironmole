@@ -88,62 +88,84 @@ func BuildSchema(schema []*bigquery.TableFieldSchema, prefix string, src interfa
 				})
 			} else {
 				fmt.Printf("Name = %s, Value = %v\n", fmt.Sprintf("%s.%s", prefix, v.Type().Field(i).Name), v.Field(i).Interface())
-				schema = append(schema, &bigquery.TableFieldSchema{
-					Name: v.Type().Field(i).Name,
-					Type: func() string {
-						switch v.Field(i).Kind() {
-						case reflect.Invalid:
-						// No-op.
-						case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-							return "INTEGER"
-						case reflect.Bool:
-							return "BOOLEAN"
-						case reflect.String:
-							return "STRING"
-						case reflect.Float32, reflect.Float64:
-							return "FLOAT"
-						case reflect.Ptr:
-							fmt.Println("Ptr = %v", v.Field(i))
-							if k, ok := v.Field(i).Interface().(*datastore.Key); ok {
-								if k != nil {
-									fmt.Println("%v is datastore.Key!", v.Field(i))
-								}
+				tfs := func() *bigquery.TableFieldSchema {
+					switch v.Field(i).Kind() {
+					case reflect.Invalid:
+					// No-op.
+					case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+						return &bigquery.TableFieldSchema{
+							Name: v.Type().Field(i).Name,
+							Type: "INTEGER"}
+					case reflect.Bool:
+						return &bigquery.TableFieldSchema{
+							Name: v.Type().Field(i).Name,
+							Type: "BOOLEAN"}
+					case reflect.String:
+						return &bigquery.TableFieldSchema{
+							Name: v.Type().Field(i).Name,
+							Type: "STRING"}
+					case reflect.Float32, reflect.Float64:
+						return &bigquery.TableFieldSchema{
+							Name: v.Type().Field(i).Name,
+							Type: "FLOAT"}
+					case reflect.Ptr:
+						fmt.Println("Ptr = %v", v.Field(i))
+						if k, ok := v.Field(i).Interface().(*datastore.Key); ok {
+							if k != nil {
+								fmt.Println("%v is datastore.Key!", v.Field(i))
 							}
-						case reflect.Slice:
-							fmt.Println("Slice = %v", v.Field(i))
-							fmt.Println(v.Field(i).Type().Elem())
-							fmt.Println(v.Field(i).Type().Elem().Kind())
+						}
+					case reflect.Slice:
+						fmt.Println("Slice = %v", v.Field(i))
+						fmt.Println(v.Field(i).Type().Elem())
+						fmt.Println(v.Field(i).Type().Elem().Kind())
 
-							if v.Field(i).Type().Elem() == reflect.TypeOf(datastore.Key{}) {
-
-							}
-							elem := v.Field(i).Type().Elem()
-							switch elem {
-							case reflect.TypeOf(&datastore.Key{}):
-								return "RECORD"
-							default:
-								fmt.Println("slice default")
-								switch elem.Kind() {
-								case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-									return "INTEGER"
-								case reflect.Bool:
-									return "BOOLEAN"
-								case reflect.String:
-									return "STRING"
-								case reflect.Float32, reflect.Float64:
-									return "FLOAT"
-								default:
-									fmt.Println("slice default") // TODO
-								}
-							}
-
-							return "" // TODO
-						default:
+						if v.Field(i).Type().Elem() == reflect.TypeOf(datastore.Key{}) {
 
 						}
-						return "" // TODO
-					}(),
-				})
+						elem := v.Field(i).Type().Elem()
+						switch elem {
+						case reflect.TypeOf(&datastore.Key{}):
+							return &bigquery.TableFieldSchema{
+								Name:   v.Type().Field(i).Name,
+								Type:   "RECORD",
+								Fields: createKeySchema(),
+								Mode:   "REPEATED"}
+						default:
+							fmt.Println("slice default")
+							switch elem.Kind() {
+							case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+								return &bigquery.TableFieldSchema{
+									Name: v.Type().Field(i).Name,
+									Type: "INTEGER",
+									Mode: "REPEATED"}
+							case reflect.Bool:
+								return &bigquery.TableFieldSchema{
+									Name: v.Type().Field(i).Name,
+									Type: "BOOLEAN",
+									Mode: "REPEATED"}
+							case reflect.String:
+								return &bigquery.TableFieldSchema{
+									Name: v.Type().Field(i).Name,
+									Type: "STRING",
+									Mode: "REPEATED"}
+							case reflect.Float32, reflect.Float64:
+								return &bigquery.TableFieldSchema{
+									Name: v.Type().Field(i).Name,
+									Type: "FLOAT",
+									Mode: "REPEATED"}
+							default:
+								fmt.Println("slice default") // TODO
+							}
+						}
+
+						return nil // TODO
+					default:
+
+					}
+					return nil // TODO
+				}()
+				schema = append(schema, tfs)
 				fmt.Printf("schema = %v\n", schema)
 			}
 		}
@@ -289,12 +311,6 @@ func Insert2(bq *bigquery.Service, projectId string, datasetId string, tableId s
 	rows := make([]*bigquery.TableDataInsertAllRequestRows, 1)
 	rows[0] = &bigquery.TableDataInsertAllRequestRows{
 		Json: jsonValue,
-		//		Json: map[string]bigquery.JsonValue{
-		//			"Fuga_Name": "Paaaa",
-		//			"Fuga_Age":  0,
-		//			"Hoge_Name": "Mogege",
-		//			"Hoge_Age":  28,
-		//		},
 	}
 	fmt.Println("%v", rows[0])
 
