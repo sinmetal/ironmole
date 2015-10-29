@@ -1,6 +1,7 @@
 package go2bq
 
 import (
+	"bytes"
 	"fmt"
 	"reflect"
 	"time"
@@ -136,7 +137,7 @@ func BuildSchema(schema []*bigquery.TableFieldSchema, prefix string, src interfa
 	return schema
 }
 
-func BuildJsonValue(jsonValue map[string]bigquery.JsonValue, prefix string, src interface{}) map[string]bigquery.JsonValue {
+func BuildJsonValue(jsonValue map[string]bigquery.JsonValue, prefix string, src interface{}) (map[string]bigquery.JsonValue, error) {
 	v := reflect.ValueOf(src)
 
 	fmt.Println(fmt.Printf("v.Kind = %s\n", v.Kind()))
@@ -153,7 +154,11 @@ func BuildJsonValue(jsonValue map[string]bigquery.JsonValue, prefix string, src 
 			fmt.Printf("%s is datastore.Key!, PkgPath = %s, x = %v\n", fmt.Sprintf("%s.%s", prefix, v.Type().Field(i).Name), v.Type().Field(i).PkgPath, x)
 			if k, ok := v.Field(i).Interface().(*datastore.Key); ok {
 				if k != nil {
-					jsonValue[v.Type().Field(i).Name] = buildDatastoreKey(k)
+					var err error
+					jsonValue[v.Type().Field(i).Name], err = buildDatastoreKey(k)
+					if err != nil {
+						return nil, err
+					}
 				}
 			}
 
@@ -170,22 +175,25 @@ func BuildJsonValue(jsonValue map[string]bigquery.JsonValue, prefix string, src 
 
 			if v.Field(i).Kind() == reflect.Struct {
 				jsonValueStruct := make(map[string]bigquery.JsonValue)
-				jsonValueStruct = BuildJsonValue(jsonValueStruct, v.Type().Field(i).Name, v.Field(i).Interface())
+				jsonValueStruct, err := BuildJsonValue(jsonValueStruct, v.Type().Field(i).Name, v.Field(i).Interface())
+				if err != nil {
+					return nil, err
+				}
 				jsonValue[v.Type().Field(i).Name] = jsonValueStruct
 			} else {
 				fmt.Printf("Name = %s, Value = %v\n", fmt.Sprintf("%s.%s", prefix, v.Type().Field(i).Name), v.Field(i).Interface())
-				jsonValue[v.Type().Field(i).Name] = func() interface{} {
+				value, err := func() (interface{}, error) {
 					switch v.Field(i).Kind() {
 					case reflect.Invalid:
 					// No-op.
 					case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-						return v.Field(i).Interface()
+						return v.Field(i).Interface(), nil
 					case reflect.Bool:
-						return v.Field(i).Interface()
+						return v.Field(i).Interface(), nil
 					case reflect.String:
-						return v.Field(i).Interface()
+						return v.Field(i).Interface(), nil
 					case reflect.Float32, reflect.Float64:
-						return v.Field(i).Interface()
+						return v.Field(i).Interface(), nil
 					case reflect.Ptr:
 						// No-op.
 					case reflect.Struct:
@@ -197,8 +205,11 @@ func BuildJsonValue(jsonValue map[string]bigquery.JsonValue, prefix string, src 
 						for j := 0; j < l; j++ {
 							elemV := v.Field(i).Index(j).Interface()
 							if ev, ok := elemV.(*datastore.Key); ok {
-								fmt.Println("slice datastore.key")
-								jv[j] = buildDatastoreKey(ev)
+								var err error
+								jv[j], err = buildDatastoreKey(ev)
+								if err != nil {
+									return nil, err
+								}
 							} else {
 								switch v.Field(i).Type().Elem().Kind() {
 								case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
@@ -215,16 +226,20 @@ func BuildJsonValue(jsonValue map[string]bigquery.JsonValue, prefix string, src 
 								}
 							}
 						}
-						return jv
+						return jv, nil
 					default:
 
 					}
-					return "" // TODO
+					return "", nil // TODO
 				}()
+				if err != nil {
+					return nil, err
+				}
+				jsonValue[v.Type().Field(i).Name] = value
 			}
 		}
 	}
-	return jsonValue
+	return jsonValue, nil
 }
 
 func Insert(bq *bigquery.Service, projectId string, datasetId string, tableId string, jsonValue map[string]bigquery.JsonValue) (*bigquery.TableDataInsertAllResponse, error) {
@@ -283,13 +298,58 @@ func createKeySchema() []*bigquery.TableFieldSchema {
 	}
 }
 
-func buildDatastoreKey(key *datastore.Key) map[string]bigquery.JsonValue {
+func buildDatastoreKey(key *datastore.Key) (map[string]bigquery.JsonValue, error) {
+	if key == nil {
+		return map[string]bigquery.JsonValue{
+			"namespace": "",
+			"app":       "",
+			"path":      "",
+			"kind":      "",
+			"name":      "",
+			"id":        0,
+		}, nil
+	}
+
+	var workKey = key
+	var keys []*datastore.Key
+	keys = append(keys, key)
+	for {
+		if workKey.Parent() == nil {
+			break
+		}
+		keys = append(keys, workKey.Parent())
+		workKey = workKey.Parent()
+	}
+
+	var buf bytes.Buffer
+	for i := len(keys) - 1; i >= 0; i-- {
+		if buf.Len() > 0 {
+			_, err := buf.WriteString(", ")
+			if err != nil {
+				return map[string]bigquery.JsonValue{}, nil
+			}
+		}
+
+		key := keys[i]
+		if len(key.StringID()) < 1 {
+			_, err := buf.WriteString(fmt.Sprintf("\"%s\", \"%s\"", keys[i].Kind(), keys[i].IntID()))
+			if err != nil {
+				return map[string]bigquery.JsonValue{}, nil
+			}
+		} else {
+			_, err := buf.WriteString(fmt.Sprintf("\"%s\", \"%s\"", keys[i].Kind(), keys[i].StringID()))
+			if err != nil {
+				return map[string]bigquery.JsonValue{}, nil
+			}
+		}
+	}
+
 	return map[string]bigquery.JsonValue{
 		"namespace": key.Namespace(),
 		"app":       key.AppID(),
-		"path":      "", // TODO Ancenstor Path
+		"path":      buf.String(),
 		"kind":      key.Kind(),
 		"name":      key.StringID(),
 		"id":        key.IntID(),
-	}
+	}, nil
 }
