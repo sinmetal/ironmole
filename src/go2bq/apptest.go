@@ -204,8 +204,12 @@ func handlerInsertMoge(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	buf, err := json.Marshal(jsonValue)
+	if err != nil {
+		log.Errorf(ctx, "Json Value Marshal Error %v", err)
+	}
+	log.Infof(ctx, "{\"__JSON_VALUE__\":%s}", buf)
 
-	log.Infof(ctx, "%v", jsonValue)
 	res, err := Insert(bq, "cp300demo1", "go2bq", "Moge", jsonValue)
 	if err != nil {
 		log.Errorf(ctx, "%v", err)

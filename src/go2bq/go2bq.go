@@ -332,12 +332,12 @@ func buildDatastoreKey(key *datastore.Key) (map[string]bigquery.JsonValue, error
 
 		key := keys[i]
 		if len(key.StringID()) < 1 {
-			_, err := buf.WriteString(fmt.Sprintf("\"%s\", \"%s\"", keys[i].Kind(), keys[i].IntID()))
+			_, err := buf.WriteString(fmt.Sprintf(`"%s", "%s"`, keys[i].Kind(), keys[i].IntID()))
 			if err != nil {
 				return map[string]bigquery.JsonValue{}, nil
 			}
 		} else {
-			_, err := buf.WriteString(fmt.Sprintf("\"%s\", \"%s\"", keys[i].Kind(), keys[i].StringID()))
+			_, err := buf.WriteString(fmt.Sprintf(`"%s", "%s"`, keys[i].Kind(), keys[i].StringID()))
 			if err != nil {
 				return map[string]bigquery.JsonValue{}, nil
 			}

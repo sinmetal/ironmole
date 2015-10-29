@@ -1,6 +1,7 @@
 package go2bq
 
 import (
+	"encoding/json"
 	"fmt"
 	bigquery "google.golang.org/api/bigquery/v2"
 	"google.golang.org/appengine/datastore"
@@ -49,7 +50,16 @@ func TestBuildJsonValueMoge(t *testing.T) {
 	}
 
 	jsonValue := make(map[string]bigquery.JsonValue)
-	BuildJsonValue(jsonValue, "", moge)
+	_, err := BuildJsonValue(jsonValue, "", moge)
+	if err != nil {
+		t.Errorf("BuildJsonValue error %v", err)
+	}
+
+	buf, err := json.Marshal(jsonValue)
+	if err != nil {
+		t.Errorf("Json Value Marshal Error %v", err)
+	}
+	t.Logf("JsonValue : %s", buf)
 
 	fmt.Println(jsonValue)
 }
