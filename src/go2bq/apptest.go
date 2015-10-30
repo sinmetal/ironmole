@@ -57,14 +57,14 @@ type Moge struct {
 }
 
 func init() {
-	http.HandleFunc("/table", handler)
+	http.HandleFunc("/tableContainer2", handlerContainer2)
 	http.HandleFunc("/insert", handlerInsert)
 	http.HandleFunc("/tableMoge", handlerTableMoge)
 	http.HandleFunc("/insertMoge", handlerInsertMoge)
 	http.HandleFunc("/moge", handlerMoge)
 }
 
-func handler(w http.ResponseWriter, r *http.Request) {
+func handlerContainer2(w http.ResponseWriter, r *http.Request) {
 	ctx := appengine.NewContext(r)
 
 	client := &http.Client{
@@ -85,7 +85,11 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		Key:  &key,
 	}
 	schema := make([]*bigquery.TableFieldSchema, 0, 10)
-	schema = BuildSchema(schema, "", c)
+	schema, err = BuildSchema(schema, c)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	err = CreateTable(bq, "cp300demo1", "go2bq", "Container2", schema)
 	if err != nil {
@@ -144,11 +148,21 @@ func handlerTableMoge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	table := "Moge"
+	tableParam := r.FormValue("table")
+	if len(tableParam) > 0 {
+		table = tableParam
+	}
+
 	moge := Moge{}
 	schema := make([]*bigquery.TableFieldSchema, 0, 10)
-	schema = BuildSchema(schema, "", moge)
+	schema, err = BuildSchema(schema, &moge)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-	err = CreateTable(bq, "cp300demo1", "go2bq", "Moge", schema)
+	err = CreateTable(bq, "cp300demo1", "go2bq", table, schema)
 	if err != nil {
 		log.Errorf(ctx, "%v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -252,4 +266,13 @@ func handlerMoge(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(items)
+}
+
+func (m *Moge) Build(schema []*bigquery.TableFieldSchema) ([]*bigquery.TableFieldSchema, error) {
+	schema = append(schema, &bigquery.TableFieldSchema{
+		Name: "__ID__",
+		Type: "STRING",
+	})
+
+	return schema, nil
 }

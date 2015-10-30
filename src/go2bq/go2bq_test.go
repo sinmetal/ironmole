@@ -17,7 +17,10 @@ func TestBuildSchema(t *testing.T) {
 		Key:  &key,
 	}
 	schema := make([]*bigquery.TableFieldSchema, 0, 10)
-	schema = BuildSchema(schema, "", c)
+	schema, err := BuildSchema(schema, &c)
+	if err != nil {
+		t.Error(err)
+	}
 
 	for _, tfs := range schema {
 		fmt.Printf("Name : %s, Type : %s \n", tfs.Name, tfs.Type)
@@ -27,7 +30,10 @@ func TestBuildSchema(t *testing.T) {
 func TestBuildSchemaMoge(t *testing.T) {
 	moge := Moge{}
 	schema := make([]*bigquery.TableFieldSchema, 0, 10)
-	schema = BuildSchema(schema, "", moge)
+	schema, err := BuildSchema(schema, &moge)
+	if err != nil {
+		t.Error(err)
+	}
 
 	for _, tfs := range schema {
 		fmt.Printf("Name : %s, Type : %s \n", tfs.Name, tfs.Type)
@@ -62,4 +68,16 @@ func TestBuildJsonValueMoge(t *testing.T) {
 	t.Logf("JsonValue : %s", buf)
 
 	fmt.Println(jsonValue)
+}
+
+func TestTableSchemaBuilderImplements(t *testing.T) {
+	moge := &Moge{}
+
+	var src interface{}
+	src = moge
+
+	_, ok := src.(TableSchemaBuilder)
+	if ok == false {
+		t.Errorf("moge is not implements TableSchemaBuilder")
+	}
 }

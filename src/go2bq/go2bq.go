@@ -11,8 +11,32 @@ import (
 	"google.golang.org/appengine/datastore"
 )
 
-func BuildSchema(schema []*bigquery.TableFieldSchema, prefix string, src interface{}) []*bigquery.TableFieldSchema {
+type TableSchemaBuilder interface {
+	Build(schema []*bigquery.TableFieldSchema) ([]*bigquery.TableFieldSchema, error)
+}
+
+func BuildSchema(schema []*bigquery.TableFieldSchema, src interface{}) ([]*bigquery.TableFieldSchema, error) {
+	schema, err := buildTableSchema(schema, "", src)
+	if err != nil {
+		return schema, err
+	}
+	if e, ok := src.(TableSchemaBuilder); ok {
+		schema, err = e.Build(schema)
+	}
+	return schema, err
+}
+
+func buildTableSchema(schema []*bigquery.TableFieldSchema, prefix string, src interface{}) ([]*bigquery.TableFieldSchema, error) {
 	v := reflect.ValueOf(src)
+	if v.Kind() == reflect.Interface && !v.IsNil() {
+		elm := v.Elem()
+		if elm.Kind() == reflect.Ptr && !elm.IsNil() && elm.Elem().Kind() == reflect.Ptr {
+			v = elm
+		}
+	}
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
 
 	fmt.Println(fmt.Printf("v.Kind = %s\n", v.Kind()))
 	fmt.Println(fmt.Printf("v.NumFields = %d\n", v.Type().NumField()))
@@ -47,7 +71,10 @@ func BuildSchema(schema []*bigquery.TableFieldSchema, prefix string, src interfa
 
 			if v.Field(i).Kind() == reflect.Struct {
 				schemaStruct := make([]*bigquery.TableFieldSchema, 0, 10)
-				schemaStruct = BuildSchema(schemaStruct, v.Type().Field(i).Name, v.Field(i).Interface())
+				schemaStruct, err := buildTableSchema(schemaStruct, v.Type().Field(i).Name, v.Field(i).Interface())
+				if err != nil {
+					return schemaStruct, nil
+				}
 				schema = append(schema, &bigquery.TableFieldSchema{
 					Name:   v.Type().Field(i).Name,
 					Type:   "RECORD",
@@ -134,7 +161,7 @@ func BuildSchema(schema []*bigquery.TableFieldSchema, prefix string, src interfa
 			}
 		}
 	}
-	return schema
+	return schema, nil
 }
 
 func BuildJsonValue(jsonValue map[string]bigquery.JsonValue, prefix string, src interface{}) (map[string]bigquery.JsonValue, error) {
