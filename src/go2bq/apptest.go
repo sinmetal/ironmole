@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 
@@ -154,7 +155,7 @@ func handlerTableMoge(w http.ResponseWriter, r *http.Request) {
 	}
 
 	moge := Moge{}
-	schema, err := BuildSchema(&moge)
+	schema, err := BuildSchemaWithContext(ctx, &moge)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -271,6 +272,18 @@ func (m *Moge) Build(schema []*bigquery.TableFieldSchema) ([]*bigquery.TableFiel
 		Name: "__ID__",
 		Type: "STRING",
 	})
+
+	return schema, nil
+}
+
+func (m *Moge) BuildWithContext(ctx context.Context, schema []*bigquery.TableFieldSchema) ([]*bigquery.TableFieldSchema, error) {
+	log.Infof(ctx, "Moge = %v", m)
+
+	schema = append(schema, &bigquery.TableFieldSchema{
+		Name: "__ID__",
+		Type: "STRING",
+	})
+	log.Infof(ctx, "Moge Schema = %v", schema)
 
 	return schema, nil
 }

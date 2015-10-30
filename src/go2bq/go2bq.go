@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"time"
 
+	"golang.org/x/net/context"
+
 	bigquery "google.golang.org/api/bigquery/v2"
 	"google.golang.org/appengine"
 	"google.golang.org/appengine/datastore"
@@ -13,6 +15,10 @@ import (
 
 type TableSchemaBuilder interface {
 	Build(schema []*bigquery.TableFieldSchema) ([]*bigquery.TableFieldSchema, error)
+}
+
+type TableSchemaWithContextBuilder interface {
+	BuildWithContext(ctx context.Context, schema []*bigquery.TableFieldSchema) ([]*bigquery.TableFieldSchema, error)
 }
 
 func BuildSchema(src interface{}) ([]*bigquery.TableFieldSchema, error) {
@@ -23,6 +29,18 @@ func BuildSchema(src interface{}) ([]*bigquery.TableFieldSchema, error) {
 	}
 	if e, ok := src.(TableSchemaBuilder); ok {
 		schema, err = e.Build(schema)
+	}
+	return schema, err
+}
+
+func BuildSchemaWithContext(ctx context.Context, src interface{}) ([]*bigquery.TableFieldSchema, error) {
+	schema := make([]*bigquery.TableFieldSchema, 0, 10)
+	schema, err := buildTableSchema(schema, "", src)
+	if err != nil {
+		return schema, err
+	}
+	if e, ok := src.(TableSchemaWithContextBuilder); ok {
+		schema, err = e.BuildWithContext(ctx, schema)
 	}
 	return schema, err
 }
