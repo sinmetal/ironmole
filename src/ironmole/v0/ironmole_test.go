@@ -1,4 +1,4 @@
-package go2bq
+package ironmole
 
 import (
 	"encoding/json"
@@ -6,8 +6,66 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/net/context"
+
+	bigquery "google.golang.org/api/bigquery/v2"
 	"google.golang.org/appengine/datastore"
 )
+
+type Container struct {
+	Hoge Hoge
+	Fuga Hoge
+}
+
+type Container2 struct {
+	Hoge Hoge
+	Fuga Hoge
+	Key  *datastore.Key
+	pri  int
+}
+
+type Hoge struct {
+	Name string
+	Age  int
+	pri  int
+}
+
+// Item
+type Item struct {
+	KeyStr    string    `json:"key" datastore:"-"`
+	Title     string    `json:"title" datastore:",noindex"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// Moge
+type Moge struct {
+	KeyStr    string           `json:"key" datastore:"-"`
+	Key       *datastore.Key   `json:"-" datastore:"-"`
+	Title     string           `json:"title" datastore:",noindex"`
+	ItemKey   *datastore.Key   `json:"itemKey"`
+	ItemKeys  []*datastore.Key `json:"itemKeys"`
+	Item      Item             `json:"item"`
+	Refs      []string         `json:"refs"`
+	CreatedAt time.Time        `json:"createdAt"`
+	UpdatedAt time.Time        `json:"updatedAt"`
+}
+
+func (m *Moge) BuildTableSchema(schema []*bigquery.TableFieldSchema) ([]*bigquery.TableFieldSchema, error) {
+	return schema, nil
+}
+
+func (m *Moge) BuildTableSchemaWithContext(ctx context.Context, schema []*bigquery.TableFieldSchema) ([]*bigquery.TableFieldSchema, error) {
+	return schema, nil
+}
+
+func (m *Moge) BuildJsonValue(jsonValue map[string]bigquery.JsonValue) (map[string]bigquery.JsonValue, error) {
+	return jsonValue, nil
+}
+
+func (m *Moge) BuildJsonValueWithContext(ctx context.Context, jsonValue map[string]bigquery.JsonValue) (map[string]bigquery.JsonValue, error) {
+	return jsonValue, nil
+}
 
 func TestBuildSchema(t *testing.T) {
 	key := datastore.Key{}
