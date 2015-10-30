@@ -16,8 +16,8 @@ func TestBuildSchema(t *testing.T) {
 		Hoge: Hoge{Name: "hoge", Age: 28},
 		Key:  &key,
 	}
-	schema := make([]*bigquery.TableFieldSchema, 0, 10)
-	schema, err := BuildSchema(schema, &c)
+
+	schema, err := BuildSchema(&c)
 	if err != nil {
 		t.Error(err)
 	}
@@ -29,8 +29,7 @@ func TestBuildSchema(t *testing.T) {
 
 func TestBuildSchemaMoge(t *testing.T) {
 	moge := Moge{}
-	schema := make([]*bigquery.TableFieldSchema, 0, 10)
-	schema, err := BuildSchema(schema, &moge)
+	schema, err := BuildSchema(&moge)
 	if err != nil {
 		t.Error(err)
 	}

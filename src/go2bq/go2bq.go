@@ -15,7 +15,8 @@ type TableSchemaBuilder interface {
 	Build(schema []*bigquery.TableFieldSchema) ([]*bigquery.TableFieldSchema, error)
 }
 
-func BuildSchema(schema []*bigquery.TableFieldSchema, src interface{}) ([]*bigquery.TableFieldSchema, error) {
+func BuildSchema(src interface{}) ([]*bigquery.TableFieldSchema, error) {
+	schema := make([]*bigquery.TableFieldSchema, 0, 10)
 	schema, err := buildTableSchema(schema, "", src)
 	if err != nil {
 		return schema, err

@@ -84,8 +84,7 @@ func handlerContainer2(w http.ResponseWriter, r *http.Request) {
 		Hoge: Hoge{Name: "hoge", Age: 28},
 		Key:  &key,
 	}
-	schema := make([]*bigquery.TableFieldSchema, 0, 10)
-	schema, err = BuildSchema(schema, c)
+	schema, err := BuildSchema(&c)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -155,8 +154,7 @@ func handlerTableMoge(w http.ResponseWriter, r *http.Request) {
 	}
 
 	moge := Moge{}
-	schema := make([]*bigquery.TableFieldSchema, 0, 10)
-	schema, err = BuildSchema(schema, &moge)
+	schema, err := BuildSchema(&moge)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
