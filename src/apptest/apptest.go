@@ -15,8 +15,8 @@ import (
 	"google.golang.org/appengine/log"
 	"google.golang.org/appengine/urlfetch"
 
-	bigquery "google.golang.org/api/bigquery/v2"
 	ironmole "github.com/sinmetal/ironmole/v0"
+	bigquery "google.golang.org/api/bigquery/v2"
 )
 
 type Container struct {
