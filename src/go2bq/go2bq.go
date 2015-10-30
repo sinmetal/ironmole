@@ -25,6 +25,10 @@ type JsonValueBuilder interface {
 	BuildJsonValue(jsonValue map[string]bigquery.JsonValue) (map[string]bigquery.JsonValue, error)
 }
 
+type JsonValueWithContextBuilder interface {
+	BuildJsonValueWithContext(ctx context.Context, jsonValue map[string]bigquery.JsonValue) (map[string]bigquery.JsonValue, error)
+}
+
 func BuildSchema(src interface{}) ([]*bigquery.TableFieldSchema, error) {
 	schema := make([]*bigquery.TableFieldSchema, 0, 10)
 	schema, err := buildTableSchema(schema, "", src)
@@ -196,6 +200,19 @@ func BuildJsonValue(src interface{}) (map[string]bigquery.JsonValue, error) {
 	}
 	if e, ok := src.(JsonValueBuilder); ok {
 		jsonValue, err = e.BuildJsonValue(jsonValue)
+	}
+	return jsonValue, err
+}
+
+func BuildJsonValueWithContext(ctx context.Context, src interface{}) (map[string]bigquery.JsonValue, error) {
+	jsonValue := make(map[string]bigquery.JsonValue)
+
+	jsonValue, err := buildJsonValueInternal(jsonValue, "", src)
+	if err != nil {
+		return jsonValue, err
+	}
+	if e, ok := src.(JsonValueWithContextBuilder); ok {
+		jsonValue, err = e.BuildJsonValueWithContext(ctx, jsonValue)
 	}
 	return jsonValue, err
 }

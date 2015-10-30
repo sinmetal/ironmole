@@ -79,3 +79,15 @@ func TestTableSchemaBuilderImplements(t *testing.T) {
 		t.Errorf("moge is not implements TableSchemaBuilder")
 	}
 }
+
+func TestJsonValueWithContextBuilderImplements(t *testing.T) {
+	moge := &Moge{}
+
+	var src interface{}
+	src = moge
+
+	_, ok := src.(JsonValueWithContextBuilder)
+	if ok == false {
+		t.Errorf("moge is not implements JsonValueWithContextBuilder")
+	}
+}

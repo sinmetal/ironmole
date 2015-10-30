@@ -222,17 +222,12 @@ func handlerInsertMoge(w http.ResponseWriter, r *http.Request) {
 	moge.Key = key
 	moge.KeyStr = key.Encode()
 
-	jsonValue, err := BuildJsonValue(&moge)
+	jsonValue, err := BuildJsonValueWithContext(ctx, &moge)
 	if err != nil {
 		log.Errorf(ctx, "%v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	buf, err := json.Marshal(jsonValue)
-	if err != nil {
-		log.Errorf(ctx, "Json Value Marshal Error %v", err)
-	}
-	log.Infof(ctx, "{\"__JSON_VALUE__\":%s}", buf)
 
 	res, err := Insert(bq, "cp300demo1", "go2bq", table, jsonValue)
 	if err != nil {
@@ -310,5 +305,17 @@ func (m *Moge) BuildWithContext(ctx context.Context, schema []*bigquery.TableFie
 func (m *Moge) BuildJsonValue(jsonValue map[string]bigquery.JsonValue) (map[string]bigquery.JsonValue, error) {
 	jsonValue["__INSERT_ID__"] = fmt.Sprintf("%s-_-%d", m.KeyStr, m.UpdatedAt.UnixNano())
 	jsonValue["__INSERT_DATE__"] = time.Now().Unix()
+	return jsonValue, nil
+}
+
+func (m *Moge) BuildJsonValueWithContext(ctx context.Context, jsonValue map[string]bigquery.JsonValue) (map[string]bigquery.JsonValue, error) {
+	jsonValue["__INSERT_ID__"] = fmt.Sprintf("%s-_-%d", m.KeyStr, m.UpdatedAt.UnixNano())
+	jsonValue["__INSERT_DATE__"] = time.Now().Unix()
+
+	buf, err := json.Marshal(jsonValue)
+	if err != nil {
+		log.Errorf(ctx, "Json Value Marshal Error %v", err)
+	}
+	log.Infof(ctx, "{\"__MOGE_JSON_VALUE__\":%s}", buf)
 	return jsonValue, nil
 }
