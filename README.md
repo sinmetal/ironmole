@@ -1,1 +1,3 @@
-# go2bq
+# ironmole
+
+Cloud Datastore Struct to BigQuery
