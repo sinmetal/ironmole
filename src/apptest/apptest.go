@@ -1,4 +1,4 @@
-package go2bq
+package apptest
 
 import (
 	"encoding/json"
@@ -16,6 +16,7 @@ import (
 	"google.golang.org/appengine/urlfetch"
 
 	bigquery "google.golang.org/api/bigquery/v2"
+	ironmole "github.com/sinmetal/ironmole/v0"
 )
 
 type Container struct {
@@ -85,13 +86,13 @@ func handlerContainer2(w http.ResponseWriter, r *http.Request) {
 		Hoge: Hoge{Name: "hoge", Age: 28},
 		Key:  &key,
 	}
-	schema, err := BuildTableSchema(&c)
+	schema, err := ironmole.BuildTableSchema(&c)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	err = CreateTable(bq, "cp300demo1", "go2bq", "Container2", schema)
+	err = ironmole.CreateTable(bq, "cp300demo1", "go2bq", "Container2", schema)
 	if err != nil {
 		log.Errorf(ctx, "%v", err)
 	}
@@ -118,14 +119,14 @@ func handlerInsert(w http.ResponseWriter, r *http.Request) {
 		Key:  &key,
 	}
 
-	jsonValue, err := BuildJsonValue(&c)
+	jsonValue, err := ironmole.BuildJsonValue(&c)
 	if err != nil {
 		log.Errorf(ctx, "%v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	res, err := Insert(bq, "cp300demo1", "go2bq", "Container2", jsonValue)
+	res, err := ironmole.Insert(bq, "cp300demo1", "go2bq", "Container2", jsonValue)
 	if err != nil {
 		log.Errorf(ctx, "%v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -162,13 +163,13 @@ func handlerTableMoge(w http.ResponseWriter, r *http.Request) {
 	}
 
 	moge := Moge{}
-	schema, err := BuildTableSchemaWithContext(ctx, &moge)
+	schema, err := ironmole.BuildTableSchemaWithContext(ctx, &moge)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	err = CreateTable(bq, "cp300demo1", "go2bq", table, schema)
+	err = ironmole.CreateTable(bq, "cp300demo1", "go2bq", table, schema)
 	if err != nil {
 		log.Errorf(ctx, "%v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -222,14 +223,14 @@ func handlerInsertMoge(w http.ResponseWriter, r *http.Request) {
 	moge.Key = key
 	moge.KeyStr = key.Encode()
 
-	jsonValue, err := BuildJsonValueWithContext(ctx, &moge)
+	jsonValue, err := ironmole.BuildJsonValueWithContext(ctx, &moge)
 	if err != nil {
 		log.Errorf(ctx, "%v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	res, err := Insert(bq, "cp300demo1", "go2bq", table, jsonValue)
+	res, err := ironmole.Insert(bq, "cp300demo1", "go2bq", table, jsonValue)
 	if err != nil {
 		log.Errorf(ctx, "%v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

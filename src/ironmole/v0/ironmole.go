@@ -1,4 +1,4 @@
-package go2bq
+package ironmole
 
 import (
 	"bytes"
