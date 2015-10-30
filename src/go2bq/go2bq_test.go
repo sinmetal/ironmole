@@ -17,7 +17,7 @@ func TestBuildSchema(t *testing.T) {
 		Key:  &key,
 	}
 
-	schema, err := BuildSchema(&c)
+	schema, err := BuildTableSchema(&c)
 	if err != nil {
 		t.Error(err)
 	}
@@ -29,7 +29,7 @@ func TestBuildSchema(t *testing.T) {
 
 func TestBuildSchemaMoge(t *testing.T) {
 	moge := Moge{}
-	schema, err := BuildSchema(&moge)
+	schema, err := BuildTableSchema(&moge)
 	if err != nil {
 		t.Error(err)
 	}

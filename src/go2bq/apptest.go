@@ -85,7 +85,7 @@ func handlerContainer2(w http.ResponseWriter, r *http.Request) {
 		Hoge: Hoge{Name: "hoge", Age: 28},
 		Key:  &key,
 	}
-	schema, err := BuildSchema(&c)
+	schema, err := BuildTableSchema(&c)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -162,7 +162,7 @@ func handlerTableMoge(w http.ResponseWriter, r *http.Request) {
 	}
 
 	moge := Moge{}
-	schema, err := BuildSchemaWithContext(ctx, &moge)
+	schema, err := BuildTableSchemaWithContext(ctx, &moge)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -273,7 +273,7 @@ func handlerMoge(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(items)
 }
 
-func (m *Moge) Build(schema []*bigquery.TableFieldSchema) ([]*bigquery.TableFieldSchema, error) {
+func (m *Moge) BuildTableSchema(schema []*bigquery.TableFieldSchema) ([]*bigquery.TableFieldSchema, error) {
 	schema = append(schema, &bigquery.TableFieldSchema{
 		Name: "__INSERT_ID__",
 		Type: "STRING",
@@ -286,7 +286,7 @@ func (m *Moge) Build(schema []*bigquery.TableFieldSchema) ([]*bigquery.TableFiel
 	return schema, nil
 }
 
-func (m *Moge) BuildWithContext(ctx context.Context, schema []*bigquery.TableFieldSchema) ([]*bigquery.TableFieldSchema, error) {
+func (m *Moge) BuildTableSchemaWithContext(ctx context.Context, schema []*bigquery.TableFieldSchema) ([]*bigquery.TableFieldSchema, error) {
 	log.Infof(ctx, "Moge = %v", m)
 
 	schema = append(schema, &bigquery.TableFieldSchema{

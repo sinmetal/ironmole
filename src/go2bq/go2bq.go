@@ -14,11 +14,11 @@ import (
 )
 
 type TableSchemaBuilder interface {
-	Build(schema []*bigquery.TableFieldSchema) ([]*bigquery.TableFieldSchema, error)
+	BuildTableSchema(schema []*bigquery.TableFieldSchema) ([]*bigquery.TableFieldSchema, error)
 }
 
 type TableSchemaWithContextBuilder interface {
-	BuildWithContext(ctx context.Context, schema []*bigquery.TableFieldSchema) ([]*bigquery.TableFieldSchema, error)
+	BuildTableSchemaWithContext(ctx context.Context, schema []*bigquery.TableFieldSchema) ([]*bigquery.TableFieldSchema, error)
 }
 
 type JsonValueBuilder interface {
@@ -29,26 +29,26 @@ type JsonValueWithContextBuilder interface {
 	BuildJsonValueWithContext(ctx context.Context, jsonValue map[string]bigquery.JsonValue) (map[string]bigquery.JsonValue, error)
 }
 
-func BuildSchema(src interface{}) ([]*bigquery.TableFieldSchema, error) {
+func BuildTableSchema(src interface{}) ([]*bigquery.TableFieldSchema, error) {
 	schema := make([]*bigquery.TableFieldSchema, 0, 10)
 	schema, err := buildTableSchema(schema, "", src)
 	if err != nil {
 		return schema, err
 	}
 	if e, ok := src.(TableSchemaBuilder); ok {
-		schema, err = e.Build(schema)
+		schema, err = e.BuildTableSchema(schema)
 	}
 	return schema, err
 }
 
-func BuildSchemaWithContext(ctx context.Context, src interface{}) ([]*bigquery.TableFieldSchema, error) {
+func BuildTableSchemaWithContext(ctx context.Context, src interface{}) ([]*bigquery.TableFieldSchema, error) {
 	schema := make([]*bigquery.TableFieldSchema, 0, 10)
 	schema, err := buildTableSchema(schema, "", src)
 	if err != nil {
 		return schema, err
 	}
 	if e, ok := src.(TableSchemaWithContextBuilder); ok {
-		schema, err = e.BuildWithContext(ctx, schema)
+		schema, err = e.BuildTableSchemaWithContext(ctx, schema)
 	}
 	return schema, err
 }
