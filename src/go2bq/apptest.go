@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 
@@ -57,14 +58,14 @@ type Moge struct {
 }
 
 func init() {
-	http.HandleFunc("/table", handler)
+	http.HandleFunc("/tableContainer2", handlerContainer2)
 	http.HandleFunc("/insert", handlerInsert)
 	http.HandleFunc("/tableMoge", handlerTableMoge)
 	http.HandleFunc("/insertMoge", handlerInsertMoge)
 	http.HandleFunc("/moge", handlerMoge)
 }
 
-func handler(w http.ResponseWriter, r *http.Request) {
+func handlerContainer2(w http.ResponseWriter, r *http.Request) {
 	ctx := appengine.NewContext(r)
 
 	client := &http.Client{
@@ -84,8 +85,11 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		Hoge: Hoge{Name: "hoge", Age: 28},
 		Key:  &key,
 	}
-	schema := make([]*bigquery.TableFieldSchema, 0, 10)
-	schema = BuildSchema(schema, "", c)
+	schema, err := BuildTableSchema(&c)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	err = CreateTable(bq, "cp300demo1", "go2bq", "Container2", schema)
 	if err != nil {
@@ -114,15 +118,22 @@ func handlerInsert(w http.ResponseWriter, r *http.Request) {
 		Key:  &key,
 	}
 
-	jsonValue := make(map[string]bigquery.JsonValue)
-	BuildJsonValue(jsonValue, "", c)
+	jsonValue, err := BuildJsonValue(&c)
+	if err != nil {
+		log.Errorf(ctx, "%v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	res, err := Insert(bq, "cp300demo1", "go2bq", "Container2", jsonValue)
 	if err != nil {
 		log.Errorf(ctx, "%v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	for _, insertError := range res.InsertErrors {
-		for _, error := range insertError.Errors {
-			log.Errorf(ctx, "Insert Error = %v", error)
+		for _, err := range insertError.Errors {
+			log.Errorf(ctx, "Insert Error = %v", err)
 		}
 	}
 }
@@ -144,11 +155,20 @@ func handlerTableMoge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	moge := Moge{}
-	schema := make([]*bigquery.TableFieldSchema, 0, 10)
-	schema = BuildSchema(schema, "", moge)
+	table := "Moge"
+	tableParam := r.FormValue("table")
+	if len(tableParam) > 0 {
+		table = tableParam
+	}
 
-	err = CreateTable(bq, "cp300demo1", "go2bq", "Moge", schema)
+	moge := Moge{}
+	schema, err := BuildTableSchemaWithContext(ctx, &moge)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	err = CreateTable(bq, "cp300demo1", "go2bq", table, schema)
 	if err != nil {
 		log.Errorf(ctx, "%v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -176,12 +196,17 @@ func handlerInsertMoge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	keyStr := r.URL.Query().Get("key")
-
+	keyStr := r.FormValue("key")
 	key, err := datastore.DecodeKey(keyStr)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	table := "Moge"
+	tableParam := r.FormValue("table")
+	if len(tableParam) > 0 {
+		table = tableParam
 	}
 
 	var moge Moge
@@ -197,20 +222,14 @@ func handlerInsertMoge(w http.ResponseWriter, r *http.Request) {
 	moge.Key = key
 	moge.KeyStr = key.Encode()
 
-	jsonValue := make(map[string]bigquery.JsonValue)
-	_, err = BuildJsonValue(jsonValue, "", moge)
+	jsonValue, err := BuildJsonValueWithContext(ctx, &moge)
 	if err != nil {
 		log.Errorf(ctx, "%v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	buf, err := json.Marshal(jsonValue)
-	if err != nil {
-		log.Errorf(ctx, "Json Value Marshal Error %v", err)
-	}
-	log.Infof(ctx, "{\"__JSON_VALUE__\":%s}", buf)
 
-	res, err := Insert(bq, "cp300demo1", "go2bq", "Moge", jsonValue)
+	res, err := Insert(bq, "cp300demo1", "go2bq", table, jsonValue)
 	if err != nil {
 		log.Errorf(ctx, "%v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -252,4 +271,51 @@ func handlerMoge(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(items)
+}
+
+func (m *Moge) BuildTableSchema(schema []*bigquery.TableFieldSchema) ([]*bigquery.TableFieldSchema, error) {
+	schema = append(schema, &bigquery.TableFieldSchema{
+		Name: "__INSERT_ID__",
+		Type: "STRING",
+	})
+	schema = append(schema, &bigquery.TableFieldSchema{
+		Name: "__INSERT_DATE__",
+		Type: "TIMESTAMP",
+	})
+
+	return schema, nil
+}
+
+func (m *Moge) BuildTableSchemaWithContext(ctx context.Context, schema []*bigquery.TableFieldSchema) ([]*bigquery.TableFieldSchema, error) {
+	log.Infof(ctx, "Moge = %v", m)
+
+	schema = append(schema, &bigquery.TableFieldSchema{
+		Name: "__INSERT_ID__",
+		Type: "STRING",
+	})
+	schema = append(schema, &bigquery.TableFieldSchema{
+		Name: "__INSERT_DATE__",
+		Type: "TIMESTAMP",
+	})
+	log.Infof(ctx, "Moge Schema = %v", schema)
+
+	return schema, nil
+}
+
+func (m *Moge) BuildJsonValue(jsonValue map[string]bigquery.JsonValue) (map[string]bigquery.JsonValue, error) {
+	jsonValue["__INSERT_ID__"] = fmt.Sprintf("%s-_-%d", m.KeyStr, m.UpdatedAt.UnixNano())
+	jsonValue["__INSERT_DATE__"] = time.Now().Unix()
+	return jsonValue, nil
+}
+
+func (m *Moge) BuildJsonValueWithContext(ctx context.Context, jsonValue map[string]bigquery.JsonValue) (map[string]bigquery.JsonValue, error) {
+	jsonValue["__INSERT_ID__"] = fmt.Sprintf("%s-_-%d", m.KeyStr, m.UpdatedAt.UnixNano())
+	jsonValue["__INSERT_DATE__"] = time.Now().Unix()
+
+	buf, err := json.Marshal(jsonValue)
+	if err != nil {
+		log.Errorf(ctx, "Json Value Marshal Error %v", err)
+	}
+	log.Infof(ctx, "{\"__MOGE_JSON_VALUE__\":%s}", buf)
+	return jsonValue, nil
 }

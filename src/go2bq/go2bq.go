@@ -6,13 +6,64 @@ import (
 	"reflect"
 	"time"
 
+	"golang.org/x/net/context"
+
 	bigquery "google.golang.org/api/bigquery/v2"
 	"google.golang.org/appengine"
 	"google.golang.org/appengine/datastore"
 )
 
-func BuildSchema(schema []*bigquery.TableFieldSchema, prefix string, src interface{}) []*bigquery.TableFieldSchema {
+type TableSchemaBuilder interface {
+	BuildTableSchema(schema []*bigquery.TableFieldSchema) ([]*bigquery.TableFieldSchema, error)
+}
+
+type TableSchemaWithContextBuilder interface {
+	BuildTableSchemaWithContext(ctx context.Context, schema []*bigquery.TableFieldSchema) ([]*bigquery.TableFieldSchema, error)
+}
+
+type JsonValueBuilder interface {
+	BuildJsonValue(jsonValue map[string]bigquery.JsonValue) (map[string]bigquery.JsonValue, error)
+}
+
+type JsonValueWithContextBuilder interface {
+	BuildJsonValueWithContext(ctx context.Context, jsonValue map[string]bigquery.JsonValue) (map[string]bigquery.JsonValue, error)
+}
+
+func BuildTableSchema(src interface{}) ([]*bigquery.TableFieldSchema, error) {
+	schema := make([]*bigquery.TableFieldSchema, 0, 10)
+	schema, err := buildTableSchema(schema, "", src)
+	if err != nil {
+		return schema, err
+	}
+	if e, ok := src.(TableSchemaBuilder); ok {
+		schema, err = e.BuildTableSchema(schema)
+	}
+	return schema, err
+}
+
+func BuildTableSchemaWithContext(ctx context.Context, src interface{}) ([]*bigquery.TableFieldSchema, error) {
+	schema := make([]*bigquery.TableFieldSchema, 0, 10)
+	schema, err := buildTableSchema(schema, "", src)
+	if err != nil {
+		return schema, err
+	}
+	if e, ok := src.(TableSchemaWithContextBuilder); ok {
+		schema, err = e.BuildTableSchemaWithContext(ctx, schema)
+	}
+	return schema, err
+}
+
+func buildTableSchema(schema []*bigquery.TableFieldSchema, prefix string, src interface{}) ([]*bigquery.TableFieldSchema, error) {
 	v := reflect.ValueOf(src)
+	if v.Kind() == reflect.Interface && !v.IsNil() {
+		elm := v.Elem()
+		if elm.Kind() == reflect.Ptr && !elm.IsNil() && elm.Elem().Kind() == reflect.Ptr {
+			v = elm
+		}
+	}
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
 
 	fmt.Println(fmt.Printf("v.Kind = %s\n", v.Kind()))
 	fmt.Println(fmt.Printf("v.NumFields = %d\n", v.Type().NumField()))
@@ -47,7 +98,10 @@ func BuildSchema(schema []*bigquery.TableFieldSchema, prefix string, src interfa
 
 			if v.Field(i).Kind() == reflect.Struct {
 				schemaStruct := make([]*bigquery.TableFieldSchema, 0, 10)
-				schemaStruct = BuildSchema(schemaStruct, v.Type().Field(i).Name, v.Field(i).Interface())
+				schemaStruct, err := buildTableSchema(schemaStruct, v.Type().Field(i).Name, v.Field(i).Interface())
+				if err != nil {
+					return schemaStruct, nil
+				}
 				schema = append(schema, &bigquery.TableFieldSchema{
 					Name:   v.Type().Field(i).Name,
 					Type:   "RECORD",
@@ -134,11 +188,46 @@ func BuildSchema(schema []*bigquery.TableFieldSchema, prefix string, src interfa
 			}
 		}
 	}
-	return schema
+	return schema, nil
 }
 
-func BuildJsonValue(jsonValue map[string]bigquery.JsonValue, prefix string, src interface{}) (map[string]bigquery.JsonValue, error) {
+func BuildJsonValue(src interface{}) (map[string]bigquery.JsonValue, error) {
+	jsonValue := make(map[string]bigquery.JsonValue)
+
+	jsonValue, err := buildJsonValueInternal(jsonValue, "", src)
+	if err != nil {
+		return jsonValue, err
+	}
+	if e, ok := src.(JsonValueBuilder); ok {
+		jsonValue, err = e.BuildJsonValue(jsonValue)
+	}
+	return jsonValue, err
+}
+
+func BuildJsonValueWithContext(ctx context.Context, src interface{}) (map[string]bigquery.JsonValue, error) {
+	jsonValue := make(map[string]bigquery.JsonValue)
+
+	jsonValue, err := buildJsonValueInternal(jsonValue, "", src)
+	if err != nil {
+		return jsonValue, err
+	}
+	if e, ok := src.(JsonValueWithContextBuilder); ok {
+		jsonValue, err = e.BuildJsonValueWithContext(ctx, jsonValue)
+	}
+	return jsonValue, err
+}
+
+func buildJsonValueInternal(jsonValue map[string]bigquery.JsonValue, prefix string, src interface{}) (map[string]bigquery.JsonValue, error) {
 	v := reflect.ValueOf(src)
+	if v.Kind() == reflect.Interface && !v.IsNil() {
+		elm := v.Elem()
+		if elm.Kind() == reflect.Ptr && !elm.IsNil() && elm.Elem().Kind() == reflect.Ptr {
+			v = elm
+		}
+	}
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
 
 	fmt.Println(fmt.Printf("v.Kind = %s\n", v.Kind()))
 	fmt.Println(fmt.Printf("v.NumFields = %d\n", v.Type().NumField()))
@@ -175,7 +264,7 @@ func BuildJsonValue(jsonValue map[string]bigquery.JsonValue, prefix string, src 
 
 			if v.Field(i).Kind() == reflect.Struct {
 				jsonValueStruct := make(map[string]bigquery.JsonValue)
-				jsonValueStruct, err := BuildJsonValue(jsonValueStruct, v.Type().Field(i).Name, v.Field(i).Interface())
+				jsonValueStruct, err := buildJsonValueInternal(jsonValueStruct, v.Type().Field(i).Name, v.Field(i).Interface())
 				if err != nil {
 					return nil, err
 				}

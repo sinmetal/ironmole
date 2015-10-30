@@ -3,10 +3,10 @@ package go2bq
 import (
 	"encoding/json"
 	"fmt"
-	bigquery "google.golang.org/api/bigquery/v2"
-	"google.golang.org/appengine/datastore"
 	"testing"
 	"time"
+
+	"google.golang.org/appengine/datastore"
 )
 
 func TestBuildSchema(t *testing.T) {
@@ -16,8 +16,11 @@ func TestBuildSchema(t *testing.T) {
 		Hoge: Hoge{Name: "hoge", Age: 28},
 		Key:  &key,
 	}
-	schema := make([]*bigquery.TableFieldSchema, 0, 10)
-	schema = BuildSchema(schema, "", c)
+
+	schema, err := BuildTableSchema(&c)
+	if err != nil {
+		t.Error(err)
+	}
 
 	for _, tfs := range schema {
 		fmt.Printf("Name : %s, Type : %s \n", tfs.Name, tfs.Type)
@@ -26,8 +29,10 @@ func TestBuildSchema(t *testing.T) {
 
 func TestBuildSchemaMoge(t *testing.T) {
 	moge := Moge{}
-	schema := make([]*bigquery.TableFieldSchema, 0, 10)
-	schema = BuildSchema(schema, "", moge)
+	schema, err := BuildTableSchema(&moge)
+	if err != nil {
+		t.Error(err)
+	}
 
 	for _, tfs := range schema {
 		fmt.Printf("Name : %s, Type : %s \n", tfs.Name, tfs.Type)
@@ -49,8 +54,7 @@ func TestBuildJsonValueMoge(t *testing.T) {
 		CreatedAt: time.Now(),
 	}
 
-	jsonValue := make(map[string]bigquery.JsonValue)
-	_, err := BuildJsonValue(jsonValue, "", moge)
+	jsonValue, err := BuildJsonValue(&moge)
 	if err != nil {
 		t.Errorf("BuildJsonValue error %v", err)
 	}
@@ -62,4 +66,28 @@ func TestBuildJsonValueMoge(t *testing.T) {
 	t.Logf("JsonValue : %s", buf)
 
 	fmt.Println(jsonValue)
+}
+
+func TestTableSchemaBuilderImplements(t *testing.T) {
+	moge := &Moge{}
+
+	var src interface{}
+	src = moge
+
+	_, ok := src.(TableSchemaBuilder)
+	if ok == false {
+		t.Errorf("moge is not implements TableSchemaBuilder")
+	}
+}
+
+func TestJsonValueWithContextBuilderImplements(t *testing.T) {
+	moge := &Moge{}
+
+	var src interface{}
+	src = moge
+
+	_, ok := src.(JsonValueWithContextBuilder)
+	if ok == false {
+		t.Errorf("moge is not implements JsonValueWithContextBuilder")
+	}
 }
