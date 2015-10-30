@@ -3,10 +3,10 @@ package go2bq
 import (
 	"encoding/json"
 	"fmt"
-	bigquery "google.golang.org/api/bigquery/v2"
-	"google.golang.org/appengine/datastore"
 	"testing"
 	"time"
+
+	"google.golang.org/appengine/datastore"
 )
 
 func TestBuildSchema(t *testing.T) {
@@ -54,8 +54,7 @@ func TestBuildJsonValueMoge(t *testing.T) {
 		CreatedAt: time.Now(),
 	}
 
-	jsonValue := make(map[string]bigquery.JsonValue)
-	_, err := BuildJsonValue(jsonValue, "", moge)
+	jsonValue, err := BuildJsonValue(&moge)
 	if err != nil {
 		t.Errorf("BuildJsonValue error %v", err)
 	}

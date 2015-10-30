@@ -118,15 +118,22 @@ func handlerInsert(w http.ResponseWriter, r *http.Request) {
 		Key:  &key,
 	}
 
-	jsonValue := make(map[string]bigquery.JsonValue)
-	BuildJsonValue(jsonValue, "", c)
+	jsonValue, err := BuildJsonValue(&c)
+	if err != nil {
+		log.Errorf(ctx, "%v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	res, err := Insert(bq, "cp300demo1", "go2bq", "Container2", jsonValue)
 	if err != nil {
 		log.Errorf(ctx, "%v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	for _, insertError := range res.InsertErrors {
-		for _, error := range insertError.Errors {
-			log.Errorf(ctx, "Insert Error = %v", error)
+		for _, err := range insertError.Errors {
+			log.Errorf(ctx, "Insert Error = %v", err)
 		}
 	}
 }
@@ -189,12 +196,17 @@ func handlerInsertMoge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	keyStr := r.URL.Query().Get("key")
-
+	keyStr := r.FormValue("key")
 	key, err := datastore.DecodeKey(keyStr)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	table := "Moge"
+	tableParam := r.FormValue("table")
+	if len(tableParam) > 0 {
+		table = tableParam
 	}
 
 	var moge Moge
@@ -210,8 +222,7 @@ func handlerInsertMoge(w http.ResponseWriter, r *http.Request) {
 	moge.Key = key
 	moge.KeyStr = key.Encode()
 
-	jsonValue := make(map[string]bigquery.JsonValue)
-	_, err = BuildJsonValue(jsonValue, "", moge)
+	jsonValue, err := BuildJsonValue(&moge)
 	if err != nil {
 		log.Errorf(ctx, "%v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -223,7 +234,7 @@ func handlerInsertMoge(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Infof(ctx, "{\"__JSON_VALUE__\":%s}", buf)
 
-	res, err := Insert(bq, "cp300demo1", "go2bq", "Moge", jsonValue)
+	res, err := Insert(bq, "cp300demo1", "go2bq", table, jsonValue)
 	if err != nil {
 		log.Errorf(ctx, "%v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -269,8 +280,12 @@ func handlerMoge(w http.ResponseWriter, r *http.Request) {
 
 func (m *Moge) Build(schema []*bigquery.TableFieldSchema) ([]*bigquery.TableFieldSchema, error) {
 	schema = append(schema, &bigquery.TableFieldSchema{
-		Name: "__ID__",
+		Name: "__INSERT_ID__",
 		Type: "STRING",
+	})
+	schema = append(schema, &bigquery.TableFieldSchema{
+		Name: "__INSERT_DATE__",
+		Type: "TIMESTAMP",
 	})
 
 	return schema, nil
@@ -280,10 +295,20 @@ func (m *Moge) BuildWithContext(ctx context.Context, schema []*bigquery.TableFie
 	log.Infof(ctx, "Moge = %v", m)
 
 	schema = append(schema, &bigquery.TableFieldSchema{
-		Name: "__ID__",
+		Name: "__INSERT_ID__",
 		Type: "STRING",
+	})
+	schema = append(schema, &bigquery.TableFieldSchema{
+		Name: "__INSERT_DATE__",
+		Type: "TIMESTAMP",
 	})
 	log.Infof(ctx, "Moge Schema = %v", schema)
 
 	return schema, nil
+}
+
+func (m *Moge) BuildJsonValue(jsonValue map[string]bigquery.JsonValue) (map[string]bigquery.JsonValue, error) {
+	jsonValue["__INSERT_ID__"] = fmt.Sprintf("%s-_-%d", m.KeyStr, m.UpdatedAt.UnixNano())
+	jsonValue["__INSERT_DATE__"] = time.Now().Unix()
+	return jsonValue, nil
 }

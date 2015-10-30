@@ -21,6 +21,10 @@ type TableSchemaWithContextBuilder interface {
 	BuildWithContext(ctx context.Context, schema []*bigquery.TableFieldSchema) ([]*bigquery.TableFieldSchema, error)
 }
 
+type JsonValueBuilder interface {
+	BuildJsonValue(jsonValue map[string]bigquery.JsonValue) (map[string]bigquery.JsonValue, error)
+}
+
 func BuildSchema(src interface{}) ([]*bigquery.TableFieldSchema, error) {
 	schema := make([]*bigquery.TableFieldSchema, 0, 10)
 	schema, err := buildTableSchema(schema, "", src)
@@ -183,8 +187,30 @@ func buildTableSchema(schema []*bigquery.TableFieldSchema, prefix string, src in
 	return schema, nil
 }
 
-func BuildJsonValue(jsonValue map[string]bigquery.JsonValue, prefix string, src interface{}) (map[string]bigquery.JsonValue, error) {
+func BuildJsonValue(src interface{}) (map[string]bigquery.JsonValue, error) {
+	jsonValue := make(map[string]bigquery.JsonValue)
+
+	jsonValue, err := buildJsonValueInternal(jsonValue, "", src)
+	if err != nil {
+		return jsonValue, err
+	}
+	if e, ok := src.(JsonValueBuilder); ok {
+		jsonValue, err = e.BuildJsonValue(jsonValue)
+	}
+	return jsonValue, err
+}
+
+func buildJsonValueInternal(jsonValue map[string]bigquery.JsonValue, prefix string, src interface{}) (map[string]bigquery.JsonValue, error) {
 	v := reflect.ValueOf(src)
+	if v.Kind() == reflect.Interface && !v.IsNil() {
+		elm := v.Elem()
+		if elm.Kind() == reflect.Ptr && !elm.IsNil() && elm.Elem().Kind() == reflect.Ptr {
+			v = elm
+		}
+	}
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
 
 	fmt.Println(fmt.Printf("v.Kind = %s\n", v.Kind()))
 	fmt.Println(fmt.Printf("v.NumFields = %d\n", v.Type().NumField()))
@@ -221,7 +247,7 @@ func BuildJsonValue(jsonValue map[string]bigquery.JsonValue, prefix string, src 
 
 			if v.Field(i).Kind() == reflect.Struct {
 				jsonValueStruct := make(map[string]bigquery.JsonValue)
-				jsonValueStruct, err := BuildJsonValue(jsonValueStruct, v.Type().Field(i).Name, v.Field(i).Interface())
+				jsonValueStruct, err := buildJsonValueInternal(jsonValueStruct, v.Type().Field(i).Name, v.Field(i).Interface())
 				if err != nil {
 					return nil, err
 				}
